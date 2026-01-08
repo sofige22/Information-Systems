@@ -1,0 +1,50 @@
+body {
+    margin: 0;
+    padding: 0;
+    /* צבע הרקע שמתאים בדיוק לרקע שרואים בתמונה שלך */
+    background-color: #f2f2f2;
+
+    /* פקודות המרכוז - Flexbox */
+    display: flex;
+    justify-content: center; /* מרכוז ימין-שמאל */
+    align-items: center;     /* מרכוז למעלה-למטה */
+    min-height: 100vh;       /* תופס את כל גובה המסך */
+    font-family: 'Segoe UI', Arial, sans-serif;
+}
+
+.container {
+    text-align: center;
+    width: 380px;
+    padding: 20px;
+    /* הסרתי את ה-background הלבן כדי שהכל יתמזג עם הרקע של התמונה */
+}
+
+.logo {
+    /* הקטנת התמונה כפי שביקשת */
+    width: 200px;
+    height: auto;
+    margin-bottom: 20px;
+    display: block;
+    margin-left: auto;
+    margin-right: auto;
+}
+
+input {
+    width: 100%;
+    padding: 12px;
+    margin: 10px 0;
+    border: 1px solid #ccc;
+    border-radius: 5px;
+    box-sizing: border-box;
+}
+
+button {
+    width: 100%;
+    padding: 12px;
+    background-color: #0056b3;
+    color: white;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+    font-size: 16px;
+}
