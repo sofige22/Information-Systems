@@ -12,10 +12,10 @@ from matplotlib import ticker
 
 
 DB_CONFIG = {
-    "host": "localhost",
-    "user": "root",
+    "host": "sofige22.mysql.pythonanywhere-services.com",
+    "user": "sofige22",
     "password": "root123456",
-    "database": "FLYTAU"
+    "database": "sofige22$FLYTAU"
 }
 
 
@@ -41,7 +41,7 @@ def verify_registered_customer(email, password):
     conn = get_conn()
     cur = conn.cursor(dictionary=True)
     try:
-        cur.execute("SELECT * FROM RegisteredCustomers WHERE RegEmail = %s AND Password = %s", (email, password))
+        cur.execute("SELECT * FROM RegisteredCustomers WHERE RegEmail = %s AND R_Password = %s", (email, password))
         return cur.fetchone()
     finally:
         cur.close()
@@ -173,7 +173,7 @@ def register_guest_if_not_exists(email, first_name, last_name, phone):
 
         # 3. If email is completely new, register as a new guest
         cur.execute("""
-            INSERT INTO GuestCustomers (GuestEmail, FirstName, LastName, Phone)
+            INSERT INTO GuestCustomers (GuestEmail, FirstName, LastName, PhoneNumber)
             VALUES (%s, %s, %s, %s)
         """, (email, first_name, last_name, phone))
 
