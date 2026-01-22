@@ -58,13 +58,16 @@ def check_manager_login(manager_id: str, password: str) -> bool:
     return ok
 
 def register_registered_customer(email, password, first_name, last_name, passport_number, birth_date, phones):
-    """Registers a new customer and saves their associated phone numbers."""
+    """
+    Registers a new customer and saves their associated phone numbers in a separate table.
+    Ensures data is split between RegisteredCustomers and RegisteredPhones as per DB schema.
+    """
     conn = get_conn()
     cur = conn.cursor()
     try:
         conn.start_transaction()
 
-        # Insert customer profile
+        # 1. Insert basic profile into RegisteredCustomers (No phone column here)
         cur.execute(
             """INSERT INTO RegisteredCustomers 
                (RegEmail, FirstName, LastName, RegistrationDate, PassportNumber, R_Password, BirthDate) 
@@ -72,7 +75,7 @@ def register_registered_customer(email, password, first_name, last_name, passpor
             (email, first_name, last_name, date.today(), passport_number, password, birth_date)
         )
 
-        # Insert phones
+        # 2. Insert multiple phone numbers into RegisteredPhones table
         if phones:
             for phone in phones:
                 cur.execute(
@@ -90,12 +93,16 @@ def register_registered_customer(email, password, first_name, last_name, passpor
         conn.close()
 
 def get_registered_customer_profile(email: str):
-    """Retrieves personal details and phone numbers for a registered customer."""
+    """
+    Retrieves personal details and joins phone numbers from the RegisteredPhones table.
+    Returns a dictionary formatted for the user profile page.
+    """
     if not email:
         return None
     conn = get_conn()
     cur = conn.cursor(dictionary=True)
     try:
+        # Fetch basic info
         cur.execute("""
             SELECT RegEmail, FirstName, LastName
             FROM RegisteredCustomers
@@ -106,6 +113,7 @@ def get_registered_customer_profile(email: str):
         if not c:
             return None
 
+        # Fetch associated phones from the phones table
         cur.execute("""
             SELECT PhoneNumber
             FROM RegisteredPhones
@@ -124,58 +132,51 @@ def get_registered_customer_profile(email: str):
         cur.close()
         conn.close()
 
-
 def register_guest_if_not_exists(email, first_name, last_name, phone):
     """
-    Checks if an email exists in RegisteredCustomers or GuestCustomers. If it's a new guest, creates a record.
+    Checks if an email exists in the system. If new, creates records in
+    both GuestCustomers and GuestPhones tables to avoid 'Unknown Column' errors.
     """
     conn = get_conn()
     cur = conn.cursor(dictionary=True)
     try:
-        # 1. Check if the email belongs to a registered member
-        # Added FirstName and LastName to the selection for validation
+        # 1. Check if the user is already a registered member
         cur.execute("SELECT RegEmail, FirstName, LastName FROM RegisteredCustomers WHERE RegEmail = %s", (email,))
         reg_user = cur.fetchone()
-
-        # This is important to clear any unread results before the next query
-        cur.fetchall()
+        cur.fetchall() # Clear results
 
         if reg_user:
-            # VALIDATION: Check if the name provided matches the registered member's name
-            # Using .strip().lower() to avoid issues with spaces or casing
             db_first = reg_user['FirstName'].strip().lower()
             db_last = reg_user['LastName'].strip().lower()
-            in_first = first_name.strip().lower()
-            in_last = last_name.strip().lower()
-
-            if db_first != in_first or db_last != in_last:
+            if db_first != first_name.strip().lower() or db_last != last_name.strip().lower():
                 return "details_mismatch", "This email is registered to a member with a different name."
-
-            # If names match, allow them to proceed
             return "success", "Member proceeding as guest."
 
-        # 2. Check if the email belongs to an existing guest
+        # 2. Check if user already exists in GuestCustomers
         cur.execute("SELECT GuestEmail, FirstName, LastName FROM GuestCustomers WHERE GuestEmail = %s", (email,))
         guest_user = cur.fetchone()
         cur.fetchall()
 
         if guest_user:
-            # VALIDATION: Check if the name matches the existing guest record
             db_first = guest_user['FirstName'].strip().lower()
             db_last = guest_user['LastName'].strip().lower()
-            in_first = first_name.strip().lower()
-            in_last = last_name.strip().lower()
-
-            if db_first != in_first or db_last != in_last:
+            if db_first != first_name.strip().lower() or db_last != last_name.strip().lower():
                 return "details_mismatch", "This email was previously used with a different name."
-
             return "success", "Existing guest found."
 
-        # 3. If email is completely new, register as a new guest
+        # 3. New Guest Registration: Split into two INSERT statements
+        # A. Insert into GuestCustomers table
         cur.execute("""
-            INSERT INTO GuestCustomers (GuestEmail, FirstName, LastName, PhoneNumber)
-            VALUES (%s, %s, %s, %s)
-        """, (email, first_name, last_name, phone))
+            INSERT INTO GuestCustomers (GuestEmail, FirstName, LastName)
+            VALUES (%s, %s, %s)
+        """, (email, first_name, last_name))
+
+        # B. Insert into GuestPhones table
+        if phone:
+            cur.execute("""
+                INSERT INTO GuestPhones (GuestEmail, PhoneNumber)
+                VALUES (%s, %s)
+            """, (email, phone.strip()))
 
         conn.commit()
         return "success", "New guest registered."
@@ -187,7 +188,6 @@ def register_guest_if_not_exists(email, first_name, last_name, phone):
     finally:
         cur.close()
         conn.close()
-
 # ==========================================
 # 2. FLIGHT BROWSING & INFO
 # ==========================================
