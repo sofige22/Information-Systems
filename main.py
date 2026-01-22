@@ -283,6 +283,7 @@ def book():
     session["booking"] = booking
     return redirect("/book_details")
 
+
 @app.route("/book_details", methods=["GET", "POST"])
 def book_details():
     """Step 2: Collects passenger contact details (auto-filled for registered users)."""
@@ -321,9 +322,12 @@ def book_details():
 
         # 3. Guest Identity Validation (Only for guests)
         if session["user_type"] == "guest":
-            status, msg = utils.register_guest_if_not_exists(email, first_name, last_name, phone)
+            # --- CRITICAL FIX: VALIDATE ONLY, DO NOT SAVE TO DB YET ---
+            # We use 'validate_guest_identity' which does SELECT only.
+            # No INSERT happens here.
+            is_valid, msg = utils.validate_guest_identity(email, first_name, last_name)
 
-            if status != "success":
+            if not is_valid:
                 return render_template(
                     "passenger_details.html",
                     flight_id=booking["flight_id"],
@@ -334,7 +338,7 @@ def book_details():
                     prev_data=request.form
                 )
 
-        # 4. Success: Save details into session and move to summary
+        # 4. Success: Save details into session ONLY (RAM), not DB yet.
         booking["customer"] = {
             "first_name": first_name,
             "last_name": last_name,
@@ -352,6 +356,7 @@ def book_details():
         user_type=session.get("user_type"),
         customer=customer_data
     )
+
 
 @app.route("/book_summary", methods=["GET", "POST"])
 def book_summary():
@@ -383,6 +388,36 @@ def book_summary():
             total_cost=total_cost
         )
 
+    # --- POST: FINALIZING ORDER ---
+
+    # --- CRITICAL FIX: SAVE TO DB NOW ---
+    # This is the moment the user clicked "Confirm".
+    # Now we insert the guest into the database.
+    if session["user_type"] == "guest":
+        # Extract phone from the list in session
+        phone_to_save = customer["phones"][0] if customer["phones"] else ""
+
+        # NOW we call the function that does INSERT
+        status, reg_msg = utils.register_guest_if_not_exists(
+            customer["email"],
+            customer["first_name"],
+            customer["last_name"],
+            phone_to_save
+        )
+
+        if status != "success":
+            # If DB saving fails, stay on summary page and show error
+            return render_template(
+                "book_summary.html",
+                user_type=session.get("user_type"),
+                flight=flight_info,
+                customer=customer,
+                seats=seat_items,
+                total_cost=total_cost,
+                error="Registration failed: " + reg_msg
+            )
+
+    # Proceed to create the order (The guest is now guaranteed to be in the DB)
     ok, msg = utils.create_order_with_selected_seats(
         flight_id=flight_id,
         customer_type=("Registered" if session["user_type"] == "registered" else "Guest"),
@@ -394,7 +429,6 @@ def book_summary():
     )
 
     if ok:
-
         try:
             order_id = ''.join(filter(str.isdigit, msg))
         except:
@@ -406,7 +440,6 @@ def book_summary():
 
     else:
         return render_template("message.html", title="Error", message=msg, back_href="/flights")
-
 
 # ==========================================
 # 5. USER ORDER MANAGEMENT (My Orders & Cancel)

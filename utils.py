@@ -132,51 +132,75 @@ def get_registered_customer_profile(email: str):
         cur.close()
         conn.close()
 
+
 def register_guest_if_not_exists(email, first_name, last_name, phone):
     """
-    Checks if an email exists in the system. If new, creates records in
-    both GuestCustomers and GuestPhones tables to avoid 'Unknown Column' errors.
+    Validates the guest's identity. If existing guest provides a new phone number, adds it. If new guest, creates records.
     """
     conn = get_conn()
     cur = conn.cursor(dictionary=True)
     try:
-        # 1. Check if the user is already a registered member
+        # 1. Check if the email belongs to a registered member
         cur.execute("SELECT RegEmail, FirstName, LastName FROM RegisteredCustomers WHERE RegEmail = %s", (email,))
         reg_user = cur.fetchone()
-        cur.fetchall() # Clear results
+        cur.fetchall()  # Clear buffer
 
         if reg_user:
+            # Validation: Enforce strict name matching
             db_first = reg_user['FirstName'].strip().lower()
             db_last = reg_user['LastName'].strip().lower()
-            if db_first != first_name.strip().lower() or db_last != last_name.strip().lower():
+            in_first = first_name.strip().lower()
+            in_last = last_name.strip().lower()
+
+            if db_first != in_first or db_last != in_last:
                 return "details_mismatch", "This email is registered to a member with a different name."
+
             return "success", "Member proceeding as guest."
 
-        # 2. Check if user already exists in GuestCustomers
+        # 2. Check if the email belongs to an existing guest
         cur.execute("SELECT GuestEmail, FirstName, LastName FROM GuestCustomers WHERE GuestEmail = %s", (email,))
         guest_user = cur.fetchone()
-        cur.fetchall()
+        cur.fetchall()  # Clear buffer
 
         if guest_user:
+            # Validation: Ensure the provided name matches the existing guest record
             db_first = guest_user['FirstName'].strip().lower()
             db_last = guest_user['LastName'].strip().lower()
-            if db_first != first_name.strip().lower() or db_last != last_name.strip().lower():
+            in_first = first_name.strip().lower()
+            in_last = last_name.strip().lower()
+
+            if db_first != in_first or db_last != in_last:
                 return "details_mismatch", "This email was previously used with a different name."
+
+            # --- UPDATE: Logic to handle additional phone numbers for returning guests ---
+            if phone:
+                # Check if this specific phone number is already linked to the guest
+                cur.execute("SELECT 1 FROM GuestPhones WHERE GuestEmail = %s AND PhoneNumber = %s", (email, phone))
+                phone_exists = cur.fetchone()
+                cur.fetchall()  # Clear buffer
+
+                if not phone_exists:
+                    # Register the new phone number for the existing guest
+                    cur.execute("INSERT INTO GuestPhones (GuestEmail, PhoneNumber) VALUES (%s, %s)", (email, phone))
+                    conn.commit()
+            # -----------------------------------------------------------------------------
+
             return "success", "Existing guest found."
 
-        # 3. New Guest Registration: Split into two INSERT statements
-        # A. Insert into GuestCustomers table
+        # 3. New Guest Registration: Split into two queries
+
+        # A. Insert basic info
         cur.execute("""
             INSERT INTO GuestCustomers (GuestEmail, FirstName, LastName)
             VALUES (%s, %s, %s)
         """, (email, first_name, last_name))
 
-        # B. Insert into GuestPhones table
+        # B. Insert phone number
         if phone:
             cur.execute("""
                 INSERT INTO GuestPhones (GuestEmail, PhoneNumber)
                 VALUES (%s, %s)
-            """, (email, phone.strip()))
+            """, (email, phone))
 
         conn.commit()
         return "success", "New guest registered."
@@ -184,10 +208,52 @@ def register_guest_if_not_exists(email, first_name, last_name, phone):
     except Exception as e:
         if conn:
             conn.rollback()
+        print(f"DB Error in register_guest: {e}")
         return "error", str(e)
     finally:
         cur.close()
         conn.close()
+
+
+def validate_guest_identity(email, first_name, last_name):
+    """
+    Checks if the email is already taken by a different name (Registered or Guest).
+    Does NOT save anything to the database.
+    """
+    conn = get_conn()
+    cur = conn.cursor(dictionary=True)
+    try:
+        # 1. Check Registered Users
+        cur.execute("SELECT FirstName, LastName FROM RegisteredCustomers WHERE RegEmail = %s", (email,))
+        reg_user = cur.fetchone()
+        cur.fetchall()
+
+        if reg_user:
+            db_first = reg_user['FirstName'].strip().lower()
+            db_last = reg_user['LastName'].strip().lower()
+            if db_first != first_name.strip().lower() or db_last != last_name.strip().lower():
+                return False, "Email belongs to a registered member with a different name."
+            return True, "OK"
+
+        # 2. Check Existing Guests
+        cur.execute("SELECT FirstName, LastName FROM GuestCustomers WHERE GuestEmail = %s", (email,))
+        guest_user = cur.fetchone()
+        cur.fetchall()
+
+        if guest_user:
+            db_first = guest_user['FirstName'].strip().lower()
+            db_last = guest_user['LastName'].strip().lower()
+            if db_first != first_name.strip().lower() or db_last != last_name.strip().lower():
+                return False, "Email belongs to a guest with a different name."
+            return True, "OK"
+
+        # 3. Email is new - totally fine
+        return True, "OK"
+
+    finally:
+        cur.close()
+        conn.close()
+
 # ==========================================
 # 2. FLIGHT BROWSING & INFO
 # ==========================================
