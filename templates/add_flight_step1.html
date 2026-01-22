@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr">
+<head>
+    <meta charset="UTF-8">
+    <title>Add Flight - Step 1</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+</head>
+<body class="page">
+    <div class="container">
+        <div class="card" style="max-width: 600px; margin: 40px auto;">
+            <span class="step-label">Step 1 of 2</span>
+            <h2 style="margin-bottom: 10px;">Basic Flight Information</h2>
+            <p style="color: #64748b; margin-bottom: 30px;">Select the schedule and route to proceed.</p>
+
+            {% if error %}
+                <div class="error-message" style="margin-bottom: 20px;">
+                    <strong>Error:</strong> {{ error }}
+                </div>
+            {% endif %}
+
+            <form action="/add_flight?step=1" method="POST">
+                <div class="form-group" style="margin-bottom: 20px; text-align: left;">
+                    <label style="display: block; font-weight: 600; margin-bottom: 8px;">Departure Date:</label>
+                    <input type="date" name="dep_date" class="form-control"
+                           min="{{ min_date }}"
+                           value="{{ request.form.get('dep_date', '') }}" required>
+                </div>
+
+                <div class="form-group" style="margin-bottom: 20px; text-align: left;">
+                    <label style="display: block; font-weight: 600; margin-bottom: 8px;">Departure Time:</label>
+                    <input type="time" name="dep_time" class="form-control"
+                           value="{{ request.form.get('dep_time', '') }}" required>
+                </div>
+
+                <div class="form-group" style="margin-bottom: 20px; text-align: left;">
+                    <label style="display: block; font-weight: 600; margin-bottom: 8px;">Route:</label>
+                    <select name="route_id" class="form-control" required>
+                        <option value="" disabled {% if not request.form.get('route_id') %}selected{% endif %}>Choose a route...</option>
+                        {% for route in routes %}
+                            <option value="{{ route.RouteID }}"
+                                {% if request.form.get('route_id') == route.RouteID|string %}selected{% endif %}>
+                                {{ route.SourceAirport }} to {{ route.DestinationAirport }}
+                            </option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <div style="display: flex; gap: 15px; margin-top: 30px;">
+                    <button type="submit" class="btn btn-blue">Next: Choose Plane & Crew</button>
+                    <a href="/flights" class="btn btn-gray">Back to Flights</a>
+                </div>
+            </form>
+        </div>
+    </div>
+</body>
+</html>
