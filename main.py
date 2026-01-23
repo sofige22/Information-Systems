@@ -38,54 +38,70 @@ def guest():
 
 @app.route("/register", methods=["GET", "POST"])
 def register():
-    """Handles the registration process for new customers."""
+    """Handles the registration process (Multi-step to allow dynamic phone count)."""
+
+    # GET Request: Show Step 1 (Basic Info + Phone Count)
     if request.method == "GET":
         return render_template("register.html")
 
-    # 1. Extract basic user information from the form
-    email = request.form.get("email", "").strip()
-    password = request.form.get("password", "").strip()
-    first_name = request.form.get("first_name", "").strip()
-    last_name = request.form.get("last_name", "").strip()
-    passport_number = request.form.get("passport_number", "").strip()
-    birth_date = request.form.get("birth_date", "").strip()
+    # POST Request: Check which step we are coming from
+    step = request.form.get("step")
 
-    # 2. Collect all 5 phone input fields explicitly from the form
-    # We use unique names (phone_1 to phone_5) matching the HTML input names
-    raw_phones = [
-        request.form.get("phone_1", ""),
-        request.form.get("phone_2", ""),
-        request.form.get("phone_3", ""),
-        request.form.get("phone_4", ""),
-        request.form.get("phone_5", "")
-    ]
+    # --- STEP 1 SUBMITTED: Move to Phone Entry ---
+    if step == "1":
+        # Collect basic info to pass to next page (so we don't lose it)
+        user_data = {
+            "email": request.form.get("email", "").strip(),
+            "password": request.form.get("password", "").strip(),
+            "first_name": request.form.get("first_name", "").strip(),
+            "last_name": request.form.get("last_name", "").strip(),
+            "passport_number": request.form.get("passport_number", "").strip(),
+            "birth_date": request.form.get("birth_date", "").strip(),
+            "phone_count": int(request.form.get("phone_count", 1))  # Default to 1 if missing
+        }
 
-    # 3. Filter the list to keep only non-empty, valid phone numbers
-    # strip() removes accidental whitespace, and the 'if p' check skips empty fields
-    phones = [p.strip() for p in raw_phones if p and p.strip()]
+        # Render Step 2 HTML with the count and data
+        return render_template("register_step2.html", data=user_data)
 
-    # 4. Basic validation: Ensure at least one phone number was provided
-    # This acts as a safety net even though the first field is 'required' in HTML
-    if not phones:
-        return render_template("register.html", error="At least one phone number is required.")
+    # --- STEP 2 SUBMITTED: Final Registration ---
+    elif step == "2":
+        # 1. Extract basic info (Passed as hidden fields from Step 2)
+        email = request.form.get("email", "").strip()
+        password = request.form.get("password", "").strip()
+        first_name = request.form.get("first_name", "").strip()
+        last_name = request.form.get("last_name", "").strip()
+        passport_number = request.form.get("passport_number", "").strip()
+        birth_date = request.form.get("birth_date", "").strip()
 
-    # 5. Call the database utility function to save the new customer and their phones
-    ok, msg = utils.register_registered_customer(
-        email=email, password=password, first_name=first_name,
-        last_name=last_name, passport_number=passport_number,
-        birth_date=birth_date, phones=phones
-    )
+        # 2. Collect Validated Phones
+        raw_phones = request.form.getlist("phones")
+        phones = [p.strip() for p in raw_phones if p and p.strip()]
 
-    # 6. If database operation fails, return to registration page with error message
-    if not ok:
-        return render_template("register.html", error=msg)
+        if not phones:
+            # Should not happen if HTML required=True is set, but good safety net
+            # If error, we send them back to Step 1 to restart
+            return render_template("register.html", error="At least one phone number is required.")
 
-    # 7. Success: Initialize user session and redirect to the flights page
-    session.clear()
-    session["user_type"] = "registered"
-    session["email"] = email
+        # 3. Save to Database
+        ok, msg = utils.register_registered_customer(
+            email=email, password=password, first_name=first_name,
+            last_name=last_name, passport_number=passport_number,
+            birth_date=birth_date, phones=phones
+        )
 
-    return redirect("/flights")
+        if not ok:
+            # If DB error, go back to Step 1 so they can fix data
+            return render_template("register.html", error=msg)
+
+        # 4. Success
+        session.clear()
+        session["user_type"] = "registered"
+        session["email"] = email
+
+        return redirect("/flights")
+
+    # Fallback
+    return redirect("/register")
 
 @app.route("/login_registered", methods=["GET", "POST"])
 def login_registered():

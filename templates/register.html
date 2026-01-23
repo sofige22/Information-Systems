@@ -2,14 +2,14 @@
 <html>
 <head>
     <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
-    <title>FlyTau - Register</title>
+    <title>FlyTau - Register Step 1</title>
 </head>
 <body dir="ltr" class="page">
     <div class="split-container">
         <div class="left-side">
             <div class="badge">JOIN US</div>
             <h1>Create Account</h1>
-            <p>Start your journey with FlyTau today</p>
+            <p>Step 1: Personal Details</p>
         </div>
 
         <div class="right-side scrollable-content">
@@ -21,6 +21,8 @@
                 {% endif %}
 
                 <form method="POST" action="/register">
+                    <input type="hidden" name="step" value="1">
+
                     <div class="form-row">
                         <div class="form-group">
                             <label>FIRST NAME (REQUIRED)</label>
@@ -55,16 +57,15 @@
 
                     <div class="staff-section">
                         <label>PHONE NUMBERS</label>
-                        <p class="section-help">Primary phone is required. Others are optional.</p>
-                        <div class="phone-grid">
-                                <input type="text" name="phone_1" placeholder="Phone 1 (Required)" required>
-                            <input type="text" name="phone_2" placeholder="Phone 2 (Optional)">
-                            <input type="text" name="phone_3" placeholder="Phone 3 (Optional)">
-                            <input type="text" name="phone_4" placeholder="Phone 4 (Optional)">
+                        <p class="section-help">How many phone numbers do you want to add?</p>
+
+                        <div class="form-group">
+                            <input type="number" name="phone_count" value="1" min="1" max="20" required
+                                   style="width: 100px; text-align: center;">
                         </div>
                     </div>
 
-                    <button class="btn btn-blue btn-submit" type="submit">CREATE ACCOUNT</button>
+                    <button class="btn btn-blue btn-submit" type="submit">NEXT STEP</button>
                 </form>
 
                 <div class="back-link">

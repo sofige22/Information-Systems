@@ -65,9 +65,13 @@ def register_registered_customer(email, password, first_name, last_name, passpor
     conn = get_conn()
     cur = conn.cursor()
     try:
-        conn.start_transaction()
+        # Check if email exists
+        cur.execute("SELECT 1 FROM RegisteredCustomers WHERE RegEmail = %s", (email,))
+        if cur.fetchone():
+            return False, "This email address is already registered. Please log in or use a different email."
+        cur.fetchall()  # Clear buffer
 
-        # 1. Insert basic profile into RegisteredCustomers (No phone column here)
+        # 1. Insert basic profile
         cur.execute(
             """INSERT INTO RegisteredCustomers 
                (RegEmail, FirstName, LastName, RegistrationDate, PassportNumber, R_Password, BirthDate) 
@@ -75,7 +79,7 @@ def register_registered_customer(email, password, first_name, last_name, passpor
             (email, first_name, last_name, date.today(), passport_number, password, birth_date)
         )
 
-        # 2. Insert multiple phone numbers into RegisteredPhones table
+        # 2. Insert multiple phone numbers
         if phones:
             for phone in phones:
                 cur.execute(
@@ -87,7 +91,7 @@ def register_registered_customer(email, password, first_name, last_name, passpor
         return True, "Success"
     except Exception as e:
         conn.rollback()
-        return False, str(e)
+        return False, "System Error: " + str(e)
     finally:
         cur.close()
         conn.close()
@@ -837,6 +841,20 @@ def add_new_pilot(pilot_id, phone, first_name, last_name, city, street, house_nu
         if not pilot_id or not first_name or not last_name:
             return False, "Missing required fields."
 
+        # --- Check if ID already exists in other roles ---
+
+        # 1. Check against Managers table
+        cur.execute("SELECT 1 FROM Managers WHERE ManagerID = %s", (pilot_id,))
+        if cur.fetchone():
+            return False, "Error: This ID already belongs to a Manager. An employee cannot hold multiple roles."
+
+        # 2. Check against FlightAttendants table
+        cur.execute("SELECT 1 FROM FlightAttendants WHERE AttendantID = %s", (pilot_id,))
+        if cur.fetchone():
+            return False, "Error: This ID already belongs to a Flight Attendant. An employee cannot hold multiple roles."
+
+        # -------------------------------------------------------
+
         cur.execute("""
             INSERT INTO Pilots 
             (PilotID, StartDate, Phone, FirstName, LastName, City, Street, HouseNumber, TrainingPassed)
@@ -862,6 +880,20 @@ def add_new_attendant(attendant_id, phone, first_name, last_name, city, street, 
     try:
         if not attendant_id or not first_name or not last_name:
             return False, "Missing required fields."
+
+        # --- Check if ID already exists in other roles ---
+
+        # 1. Check against Managers table
+        cur.execute("SELECT 1 FROM Managers WHERE ManagerID = %s", (attendant_id,))
+        if cur.fetchone():
+            return False, "Error: This ID already belongs to a Manager. An employee cannot hold multiple roles."
+
+        # 2. Check against Pilots table
+        cur.execute("SELECT 1 FROM Pilots WHERE PilotID = %s", (attendant_id,))
+        if cur.fetchone():
+            return False, "Error: This ID already belongs to a Pilot. An employee cannot hold multiple roles."
+
+        # -------------------------------------------------------
 
         cur.execute("""
             INSERT INTO FlightAttendants 
