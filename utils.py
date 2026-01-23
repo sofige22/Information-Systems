@@ -919,13 +919,15 @@ def get_all_crew(role_filter=None, training_filter=None, status_filter=None):
     conn = get_conn()
     cur = conn.cursor(dictionary=True)
 
-    # 1. Fetch all crew (Pilots & Attendants) and calculate Real-Time Data in a single query
+    # Capture the exact current time from Python
+    now_time = datetime.now()
+
+    # 1. Fetch all crew (Pilots & Attendants) and calculate Real-Time Data
     query = """
     SELECT 
         ID, FirstName, LastName, Role, TrainingPassed,
 
-        -- 2. Check Real-Time Availability (Are they flying RIGHT NOW?)
-        -- Determines if the crew member is currently in the air based on flight times.
+        -- Check Real-Time Availability
         CASE 
             WHEN EXISTS (
                 SELECT 1 FROM Flights f
@@ -936,14 +938,13 @@ def get_all_crew(role_filter=None, training_filter=None, status_filter=None):
                 ) AS CrewActivity ON f.FlightID = CrewActivity.FlightID
                 WHERE CrewActivity.CrewID = AllCrew.ID
                 AND f.FlightStatus != 'Cancelled'
-                AND NOW() BETWEEN TIMESTAMP(f.DepartureDate, f.DepartureTime) 
-                              AND TIMESTAMP(f.ArrivalDate, f.ArrivalTime)
+                AND %s BETWEEN TIMESTAMP(f.DepartureDate, f.DepartureTime) 
+                           AND TIMESTAMP(f.ArrivalDate, f.ArrivalTime)
             ) THEN 'Busy'
             ELSE 'Available'
         END AS Status,
 
-        -- 3. Determine Current Location
-        -- Based on the destination of their last completed flight.
+        -- Determine Current Location
         COALESCE(
             (
                 SELECT r.DestinationAirport
@@ -956,7 +957,7 @@ def get_all_crew(role_filter=None, training_filter=None, status_filter=None):
                 ) AS CrewHistory ON f.FlightID = CrewHistory.FlightID
                 WHERE CrewHistory.CrewID = AllCrew.ID
                 AND f.FlightStatus != 'Cancelled'
-                AND TIMESTAMP(f.ArrivalDate, f.ArrivalTime) <= NOW() 
+                AND TIMESTAMP(f.ArrivalDate, f.ArrivalTime) <= %s 
                 ORDER BY f.ArrivalDate DESC, f.ArrivalTime DESC
                 LIMIT 1
             ), 
@@ -971,7 +972,8 @@ def get_all_crew(role_filter=None, training_filter=None, status_filter=None):
     ) AS AllCrew
     """
 
-    cur.execute(query)
+    # Pass 'now_time' twice: once for Status, once for Location
+    cur.execute(query, (now_time, now_time))
     results = cur.fetchall()
     conn.close()
 
@@ -988,7 +990,7 @@ def get_all_crew(role_filter=None, training_filter=None, status_filter=None):
 
         # Filter by Status (Available / Busy)
         if status_filter and member['Status'] != status_filter:
-            continue  # Skip if we want Available but user is Busy (or vice versa)
+            continue
 
         filtered_crew.append(member)
 
