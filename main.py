@@ -997,6 +997,3 @@ def reports_page():
                            error=error_message,
                            selected_report=selected_report)
 
-
-if __name__ == "__main__":
-    app.run(debug=True, port=5001)
