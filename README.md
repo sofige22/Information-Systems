@@ -132,7 +132,7 @@ Password: pass10
 │....├── reports.html..................# Manager: Business Intelligence (BI) charts and analytics
 
 │....└── welcome.html..................# General: Main application landing/home page
-│
+
 ├── **sql**/........................... # Database setup scripts  
 
 │....├── create_tables.sql............# Creates tables and relationships
