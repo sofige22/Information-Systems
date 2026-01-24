@@ -1546,6 +1546,22 @@ def generate_crew_hours_chart_image():
         if df.empty: return None, "No crew data found."
 
         df["Total_Flight_Hours"] = pd.to_numeric(df["Total_Flight_Hours"], errors="coerce")
+
+        # --- SMART FIX FOR HEBREW/ENGLISH MIX ---
+        # Define a helper to detect Hebrew characters
+        def fix_text(text):
+            if not text: return ""
+            text = str(text)
+            # Check if string contains Hebrew characters (Unicode range \u0590-\u05FF)
+            if any("\u0590" <= c <= "\u05FF" for c in text):
+                return text[::-1] # Reverse only if Hebrew
+            return text # Keep English as is
+
+        # Apply the smart fix
+        df["FirstName"] = df["FirstName"].apply(fix_text)
+        df["LastName"] = df["LastName"].apply(fix_text)
+        # ------------------------------------------------------------
+
         df["FullName"] = df["FirstName"] + " " + df["LastName"] + " (" + df["Role"].map(
             {'Pilot': 'P', 'Flight Attendant': 'FA'}) + ")"
 
